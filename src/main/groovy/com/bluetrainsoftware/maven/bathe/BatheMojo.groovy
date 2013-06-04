@@ -39,10 +39,8 @@ class BatheMojo extends AbstractMojo {
   @Parameter(property = 'run.mainClass', required = true)
   public String mainClass
 
-  private File fExport;
-  private File fLibrary;
-  private List<File> zippedDirectories = []
-  private List<File> zippedFiles = []
+  FileOutputStream fos
+  JarOutputStream jar
 
   protected boolean isWar() {
     return extension == ARTIFACT_WAR
@@ -56,7 +54,15 @@ class BatheMojo extends AbstractMojo {
   void execute() throws MojoExecutionException, MojoFailureException {
     log();
 
-    createExportDirectory()
+    fos = new FileOutputStream(project.build.directory + "/bathe.war")
+    jar = new JarOutputStream(fos)
+
+    createManifest()
+
+    if (isWar())
+      copyBuildDirectory('WEB-INF/classes')
+    else
+      copyBuildDirectory(libraryOffset + "/classes")
 
     project.runtimeArtifacts.each { Artifact artifact ->
       if (isWar() && artifact.getClassifier() == "overlay") {
@@ -65,52 +71,51 @@ class BatheMojo extends AbstractMojo {
         extractArtifact(fLibrary, artifact)
       }
     }
-
-    if (isWar())
-      copyBuildDirectory(new File(fExport, 'WEB-INF/classes'))
-    else
-      copyBuildDirectory(new File(fExport, libraryOffset + "/classes"))
-
-    createManifest()
-    jarArtifact()
   }
 
-  protected void copy(InputStream inputStream, File outFile) {
-    OutputStream outputStream = new FileOutputStream(outFile)
-
-    IOUtils.copy(inputStream, outputStream)
-
-    inputStream.close()
-    outputStream.close()
-  }
-
-  protected void recursiveCopy(File curDir, File outputDir) {
+  protected void recursiveCopy(File curDir, String offset) {
     curDir.listFiles().each { File file ->
       if (file.name.startsWith(".")) return
 
       if (file.directory) {
-        File newDir = new File(outputDir, file.name)
-        newDir.mkdirs()
-
-        zippedDirectories.add(newDir)
-
-        recursiveCopy(file, newDir)
+        recursiveCopy(file, addJarDirectory(offset + file.name))
       } else {
-        File newFile = new File(outputDir, file.getName())
-        zippedFiles.add(newFile)
-
-        copy(new FileInputStream(file), newFile)
+        addJarFile(file, offset)
       }
     }
   }
 
-  protected void copyBuildDirectory(File destDirectory) {
+  protected void addJarFile(File file, String offset) {
+    String offsetDir = offset.endsWith('/') ?: offset + '/'
+
+    String name = offsetDir + file.name
+
+    JarEntry ze = new JarEntry(name)
+    jar.putNextEntry(ze)
+    InputStream is = new FileInputStream(file)
+    IOUtils.copy(is, jar)
+    jar.closeEntry()
+    is.close()
+  }
+
+  protected String addJarDirectory(String dir) {
+
+    String name = dir.endsWith('/') ?: dir + '/'
+
+    JarEntry ze = new JarEntry(name)
+    jar.putNextEntry(ze)
+    jar.closeEntry()
+
+    return name
+  }
+
+  protected void copyBuildDirectory(String offset) {
+    String dirOffset = addJarDirectory(offset)
+
     File classesDir = new File(project.build.outputDirectory)
 
     if (classesDir.exists()) {
-      destDirectory.mkdirs()
-
-      recursiveCopy(classesDir, destDirectory)
+      recursiveCopy(classesDir, dirOffset)
     }
   }
 
