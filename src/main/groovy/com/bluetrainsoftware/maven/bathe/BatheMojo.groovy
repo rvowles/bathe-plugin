@@ -12,6 +12,7 @@ import org.apache.maven.plugins.annotations.Parameter
 import org.apache.maven.plugins.annotations.ResolutionScope
 import org.apache.maven.project.MavenProject
 
+import java.lang.reflect.Field
 import java.util.jar.JarEntry
 import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
@@ -19,7 +20,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 //@CompileStatic
-@Mojo(name="time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
+@Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
 class BatheMojo extends AbstractMojo {
   public static final String ARTIFACT_WAR = 'war'
 
@@ -36,7 +37,7 @@ class BatheMojo extends AbstractMojo {
   @Parameter(property = 'run.libraryOffset')
   public String libraryOffset = 'WEB-INF/jars'
 
-  @Parameter(property = 'run.mainClass', required = true)
+  @Parameter(property = 'run.mainClass')
   public String mainClass
 
   FileOutputStream fos
@@ -57,20 +58,53 @@ class BatheMojo extends AbstractMojo {
     fos = new FileOutputStream(project.build.directory + "/bathe.war")
     jar = new JarOutputStream(fos)
 
-    createManifest()
-
     if (isWar())
       copyBuildDirectory('WEB-INF/classes')
     else
       copyBuildDirectory(libraryOffset + "/classes")
 
-    project.runtimeArtifacts.each { Artifact artifact ->
-      if (isWar() && artifact.getClassifier() == "overlay") {
-        extractArtifact(fExport, artifact)
-      } else {
-        extractArtifact(fLibrary, artifact)
+
+    project.artifacts.each { Artifact artifact ->
+      if (artifact.scope == 'compile' || artifact.scope == 'runtime') {
+        if (artifact.type == ARTIFACT_WAR) {
+          extractArtifact(artifact, '')
+        } else {
+          extractArtifact(artifact, libraryOffset)
+        }
       }
     }
+
+    if (mainClass)
+      createManifest()
+
+    jar.close()
+  }
+
+
+
+  protected void addJarFile(File file, String offset) {
+    String offsetDir = offset.endsWith('/') ? offset : offset + '/'
+
+    String name = offsetDir + file.name
+
+    JarEntry ze = new JarEntry(name)
+
+    jar.putNextEntry(ze)
+    InputStream is = new FileInputStream(file)
+    IOUtils.copy(is, jar)
+    jar.closeEntry()
+    is.close()
+  }
+
+  protected String addJarDirectory(String dir) {
+
+    String name = dir.endsWith('/') ? dir : dir + '/'
+
+    JarEntry ze = new JarEntry(name)
+    jar.putNextEntry(ze)
+    jar.closeEntry()
+
+    return name
   }
 
   protected void recursiveCopy(File curDir, String offset) {
@@ -85,30 +119,6 @@ class BatheMojo extends AbstractMojo {
     }
   }
 
-  protected void addJarFile(File file, String offset) {
-    String offsetDir = offset.endsWith('/') ?: offset + '/'
-
-    String name = offsetDir + file.name
-
-    JarEntry ze = new JarEntry(name)
-    jar.putNextEntry(ze)
-    InputStream is = new FileInputStream(file)
-    IOUtils.copy(is, jar)
-    jar.closeEntry()
-    is.close()
-  }
-
-  protected String addJarDirectory(String dir) {
-
-    String name = dir.endsWith('/') ?: dir + '/'
-
-    JarEntry ze = new JarEntry(name)
-    jar.putNextEntry(ze)
-    jar.closeEntry()
-
-    return name
-  }
-
   protected void copyBuildDirectory(String offset) {
     String dirOffset = addJarDirectory(offset)
 
@@ -119,86 +129,62 @@ class BatheMojo extends AbstractMojo {
     }
   }
 
-  protected void extractArtifact(File to, Artifact artifact) {
-    String name = artifact.file.name
 
-    if (name.endsWith(".jar")) {
-      name = name.substring(0, name.length() - 4)
+  protected void addJarEntry(JarEntry jarEntry, InputStream is, String offset) {
+    String offsetDir
+
+    if (offset)
+      offsetDir = offset.endsWith('/') ? offset : offset + '/'
+    else
+      offsetDir = ''
+
+    String internalName = offsetDir + jarEntry.name
+
+    // bully the zip entry into copying the existing one and then reset its name to the new name
+    JarEntry ze = new JarEntry(jarEntry)
+    Field f = ze.class.getSuperclass().getDeclaredField("name")
+    f.setAccessible(true)
+    f.set(ze, internalName)
+
+    jar.putNextEntry(ze)
+    IOUtils.copy(is, jar)
+    jar.closeEntry()
+  }
+
+  protected void extractArtifact(Artifact artifact, String offset) {
+    String offsetDir = offset.endsWith('/') ? offset : offset + '/'
+
+    if (offset) {
+      String name = artifact.file.name
+
+      if (name.endsWith(".jar")) {
+        name = name.substring(0, name.length() - 4)
+      }
+
+      offsetDir = offsetDir + name + '/'
+    } else {
+      offsetDir = ''
     }
 
-    File mainTo = new File(to, name)
+    JarFile f = new JarFile(artifact.getFile())
 
-    mainTo.mkdirs()
-
-    ZipFile f = new ZipFile(artifact.getFile())
-
-    f.entries().each { ZipEntry entry ->
-      File oFile = new File(mainTo, entry.name)
-
-      if (!entry.directory) {
-        File parentDir = oFile.parentFile
-
-        if (!zippedDirectories.contains(parentDir)) {
-          parentDir.mkdirs()
-
-          zippedDirectories.add(parentDir)
-        }
-
-        zippedFiles.add(oFile)
-
-        copy(f.getInputStream(entry), oFile)
-      }
+    f.entries().each { JarEntry entry ->
+      if (entry.isDirectory())
+        addJarDirectory(offsetDir + entry.name)
+      else
+        addJarEntry(entry, f.getInputStream(entry), offsetDir)
     }
   }
 
   protected void createManifest() {
-    File manifest = new File(fExport, "META-INF")
-    manifest.mkdirs()
+    byte[] bytes = "Manifest-Version: 1.0\nMain-Class: ${mainClass}".bytes
 
-    File manifestFile = new File(manifest, "MANIFEST.MF")
-
-    zippedFiles.add(manifestFile)
-
-    manifestFile.write("Manifest-Version: 1.0\nMain-Class: ${mainClass}")
+    JarEntry ze = new JarEntry("META-INF/MANIFEST.MF")
+    ze.size = bytes.size()
+    jar.putNextEntry(ze)
+    jar.write(bytes)
+    jar.closeEntry()
   }
 
-  protected void jarArtifact() {
-    FileOutputStream fos = new FileOutputStream(project.build.directory + "/bathe.war")
 
-    JarOutputStream jar = new JarOutputStream(fos)
-
-    int exportDir = fExport.absolutePath.length()
-
-    zippedDirectories.each { File dir ->
-      String name = dir.absolutePath.substring(exportDir)
-      getLog().info("adding ${name}")
-      JarEntry ze = new JarEntry(name)
-      jar.putNextEntry(ze)
-      jar.closeEntry()
-    }
-
-    zippedFiles.each { File file ->
-      String name = file.absolutePath.substring(exportDir)
-      getLog().info("adding ${name}")
-
-      JarEntry ze = new JarEntry(name)
-      jar.putNextEntry(ze)
-      InputStream is = new FileInputStream(file)
-      IOUtils.copy(is, jar)
-      jar.closeEntry()
-      is.close()
-    }
-
-    fos.close()
-  }
-
-  protected void createExportDirectory() {
-    fExport = new File(project.build.directory + '/bathe')
-
-    fExport.mkdirs()
-
-    fLibrary = new File(fExport, libraryOffset)
-
-    fLibrary.mkdirs()
-  }
 }
