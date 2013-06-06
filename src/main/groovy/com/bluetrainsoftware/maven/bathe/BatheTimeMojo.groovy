@@ -21,18 +21,11 @@ import java.util.zip.ZipFile
 
 //@CompileStatic
 @Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
-class BatheMojo extends AbstractMojo {
+class BatheTimeMojo extends AbstractMojo {
   public static final String ARTIFACT_WAR = 'war'
-
 
   @Parameter(required = true, readonly = true, property = 'project')
   protected MavenProject project;
-
-  @Parameter(property = 'run.extension')
-  public String extension = ARTIFACT_WAR
-
-  @Parameter(property = 'run.classifier')
-  public String classifier = null;
 
   @Parameter(property = 'run.libraryOffset')
   public String libraryOffset = 'WEB-INF/jars'
@@ -40,22 +33,31 @@ class BatheMojo extends AbstractMojo {
   @Parameter(property = 'run.mainClass')
   public String mainClass
 
+  @Parameter(property = 'run.args')
+  public String args
+
   FileOutputStream fos
   JarOutputStream jar
 
   protected boolean isWar() {
-    return extension == ARTIFACT_WAR
+    return project.packaging == "bathe-war"
   }
 
   protected void log() {
-    getLog().info("bathe: extension ${extension}, classifier ${classifier}, library offset ${libraryOffset}, main class ${mainClass}")
+    getLog().info("bathe: extension ${extension()}, library offset ${libraryOffset}, main class ${mainClass}")
+  }
+
+  protected String extension() {
+    return isWar() ? "war" : "jar"
   }
 
   @Override
   void execute() throws MojoExecutionException, MojoFailureException {
     log();
 
-    fos = new FileOutputStream(project.build.directory + "/bathe.war")
+    project.artifact.file = new File(project.build.directory + "/${project.artifactId}-${project.version}.${extension()}")
+
+    fos = new FileOutputStream(project.artifact.file)
     jar = new JarOutputStream(fos)
 
     if (isWar())
