@@ -21,41 +21,26 @@ import java.util.zip.ZipFile
 
 //@CompileStatic
 @Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
-class BatheTimeMojo extends AbstractMojo {
+class BatheTimeMojo extends BaseBatheMojo {
   public static final String ARTIFACT_WAR = 'war'
 
-  @Parameter(required = true, readonly = true, property = 'project')
-  protected MavenProject project;
 
   @Parameter(property = 'run.libraryOffset')
   public String libraryOffset = 'WEB-INF/jars'
 
-  @Parameter(property = 'run.mainClass')
-  public String mainClass
-
-  @Parameter(property = 'run.args')
-  public String args
 
   FileOutputStream fos
   JarOutputStream jar
 
-  protected boolean isWar() {
-    return project.packaging == "bathe-war"
-  }
-
   protected void log() {
-    getLog().info("bathe: extension ${extension()}, library offset ${libraryOffset}, main class ${mainClass}")
-  }
-
-  protected String extension() {
-    return isWar() ? "war" : "jar"
+    getLog().info("bathe ${extension()} generation, library offset ${libraryOffset}")
   }
 
   @Override
   void execute() throws MojoExecutionException, MojoFailureException {
     log();
 
-    project.artifact.file = new File(project.build.directory + "/${project.artifactId}-${project.version}.${extension()}")
+    project.artifact.file = getGeneratedFile()
 
     fos = new FileOutputStream(project.artifact.file)
     jar = new JarOutputStream(fos)
@@ -64,7 +49,6 @@ class BatheTimeMojo extends AbstractMojo {
       copyBuildDirectory('WEB-INF/classes')
     else
       copyBuildDirectory(libraryOffset + "/classes")
-
 
     project.artifacts.each { Artifact artifact ->
       if (artifact.scope == 'compile' || artifact.scope == 'runtime') {
