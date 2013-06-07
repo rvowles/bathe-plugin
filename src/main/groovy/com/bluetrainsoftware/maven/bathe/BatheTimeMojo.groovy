@@ -24,10 +24,17 @@ import java.util.zip.ZipFile
 class BatheTimeMojo extends BaseBatheMojo {
   public static final String ARTIFACT_WAR = 'war'
 
+  @Parameter(property = 'run.mainClass')
+  public String mainClass
+
+  /**
+   * A Jump-Class gives the Bathe-Booter a location of where to jump to.
+   */
+  @Parameter(property = 'run.jumpClass')
+  public String jumpClass
 
   @Parameter(property = 'run.libraryOffset')
   public String libraryOffset = 'WEB-INF/jars'
-
 
   FileOutputStream fos
   JarOutputStream jar
@@ -157,13 +164,18 @@ class BatheTimeMojo extends BaseBatheMojo {
     f.entries().each { JarEntry entry ->
       if (entry.isDirectory())
         addJarDirectory(offsetDir + entry.name)
-      else
+      else if (entry.name != 'META-INF/MANIFEST.MF' || offsetDir != '')
         addJarEntry(entry, f.getInputStream(entry), offsetDir)
     }
   }
 
   protected void createManifest() {
-    byte[] bytes = "Manifest-Version: 1.0\nMain-Class: ${mainClass}".bytes
+    String manifest = "Manifest-Version: 1.0\nMain-Class: ${mainClass}\nCreated-by: Bathe/Time\nImplementation-Version: ${project.version}\n"
+
+    if (jumpClass)
+      manifest = manifest + "Jump-Class: ${jumpClass}\n"
+
+    byte[] bytes = manifest.toString().bytes
 
     JarEntry ze = new JarEntry("META-INF/MANIFEST.MF")
     ze.size = bytes.size()
