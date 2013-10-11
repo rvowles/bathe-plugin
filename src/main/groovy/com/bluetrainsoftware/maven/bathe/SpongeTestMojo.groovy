@@ -9,6 +9,9 @@ import org.apache.maven.plugins.annotations.Parameter
 import org.apache.maven.plugins.annotations.ResolutionScope
 
 /**
+ * This target executes the constructed jar with the specified parameters. It is used in integration testing the artifact
+ * to ensure it starts up and to run any tests against it.
+ *
  * author: Richard Vowles - http://gplus.to/RichardVowles
  */
 @CompileStatic
@@ -32,7 +35,11 @@ class SpongeTestMojo extends BaseBatheMojo {
 
   @Override
   void execute() throws MojoExecutionException, MojoFailureException {
-    File execFile = generatedFile
+	  if (project.packaging == 'pom') {
+		  return
+	  }
+
+	  File execFile = generatedFile
 
     if (!execFile.exists()) {
       log('No runnable jar/war, skipping')

@@ -19,7 +19,7 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
-//@CompileStatic
+@CompileStatic
 @Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
 class BatheTimeMojo extends BaseBatheMojo {
   public static final String ARTIFACT_WAR = 'war'
@@ -36,8 +36,13 @@ class BatheTimeMojo extends BaseBatheMojo {
   @Parameter(property = 'run.libraryOffset')
   public String libraryOffset = 'WEB-INF/jars'
 
+	@Parameter(property = 'run.runnableLibraries')
+	public String runnableLibraries = 'bathe-runner'
+
   FileOutputStream fos
   JarOutputStream jar
+	String[] runLibs
+	List directoryNamesAlreadyInJar = []
 
   protected void log() {
     getLog().info("bathe ${extension()} generation, library offset ${libraryOffset}")
@@ -45,27 +50,28 @@ class BatheTimeMojo extends BaseBatheMojo {
 
   @Override
   void execute() throws MojoExecutionException, MojoFailureException {
-    log();
+	  if (project.packaging == 'pom') {
+		  return
+	  }
 
-    project.artifact.file = getGeneratedFile()
+	  log()
+
+	  project.artifact.file = getGeneratedFile()
 
     fos = new FileOutputStream(project.artifact.file)
     jar = new JarOutputStream(fos)
 
-    if (isWar())
-      copyBuildDirectory('WEB-INF/classes')
-    else
-      copyBuildDirectory(libraryOffset + "/classes")
+	  runLibs = runnableLibraries.tokenize(',')
 
-    project.artifacts.each { Artifact artifact ->
-      if (artifact.scope == 'compile' || artifact.scope == 'runtime') {
-        if (artifact.type == ARTIFACT_WAR) {
-          extractArtifact(artifact, '')
-        } else {
-          extractArtifact(artifact, libraryOffset)
-        }
-      }
-    }
+	  if (isWar()) {
+		  extractWebAppDirectory()
+	  }
+
+	  extractRunnableLibraries(runLibs)
+
+		copyBuildDirectory(libraryOffset + "/classes")
+
+	  extractOtherLibraries(runLibs)
 
     if (mainClass)
       createManifest()
@@ -73,7 +79,50 @@ class BatheTimeMojo extends BaseBatheMojo {
     jar.close()
   }
 
+	/**
+	 * This is typically where the WEB-INF/web.xml is stored along with anything else the user requires
+	 */
+	protected void extractWebAppDirectory() {
+		File classesDir = new File(project.basedir, "src/main/webapp")
 
+		if (classesDir.exists()) {
+			recursiveCopy(classesDir, '')
+		}
+	}
+
+	protected boolean artifactRunnable(Artifact artifact) {
+		for(String runlib : runLibs) {
+			if (artifact.artifactId.contains(runlib)) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	protected void extractRunnableLibraries(String[] runLibs) {
+		filterLibraries { Artifact artifact ->
+			if (artifactRunnable(artifact)) {
+				extractArtifact(artifact, '')
+			}
+		}
+	}
+
+	protected void extractOtherLibraries(String[] runLibs) {
+		filterLibraries { Artifact artifact ->
+			if (!artifactRunnable(artifact)) {
+				extractArtifact(artifact, libraryOffset)
+			}
+		}
+	}
+
+	protected void filterLibraries(Closure c) {
+		project.artifacts.each { Artifact artifact ->
+			if (artifact.scope == 'compile' || artifact.scope == 'runtime') {
+				c(artifact)
+			}
+		}
+	}
 
   protected void addJarFile(File file, String offset) {
     String offsetDir = offset.endsWith('/') ? offset : offset + '/'
@@ -89,13 +138,19 @@ class BatheTimeMojo extends BaseBatheMojo {
     is.close()
   }
 
+	protected Map<String, String> existingDirs = [:]
+
   protected String addJarDirectory(String dir) {
 
     String name = dir.endsWith('/') ? dir : dir + '/'
 
-    JarEntry ze = new JarEntry(name)
-    jar.putNextEntry(ze)
-    jar.closeEntry()
+	  if (!existingDirs[name]) {
+		  existingDirs[name] = name
+
+	    JarEntry ze = new JarEntry(name)
+	    jar.putNextEntry(ze)
+	    jar.closeEntry()
+	  }
 
     return name
   }
@@ -174,6 +229,8 @@ class BatheTimeMojo extends BaseBatheMojo {
 
     if (jumpClass)
       manifest = manifest + "Jump-Class: ${jumpClass}\n"
+
+	  manifest += "Jar-Offset: ${libraryOffset}\n"
 
     byte[] bytes = manifest.toString().bytes
 
