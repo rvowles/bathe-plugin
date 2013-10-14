@@ -42,7 +42,6 @@ class BatheTimeMojo extends BaseBatheMojo {
   FileOutputStream fos
   JarOutputStream jar
 	String[] runLibs
-	List directoryNamesAlreadyInJar = []
 
   protected void log() {
     getLog().info("bathe ${extension()} generation, library offset ${libraryOffset}")
