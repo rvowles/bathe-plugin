@@ -33,19 +33,46 @@ class BatheTimeMojo extends BaseBatheMojo {
   @Parameter(property = 'run.jumpClass')
   public String jumpClass
 
+	/**
+	 * What offset within the final jar file the artifacts will take.
+ 	 */
   @Parameter(property = 'run.libraryOffset')
   public String libraryOffset = 'WEB-INF/jars'
 
+	/**
+	 * These are a list of libraries who's entire contents will unzipped into the top level jar/war artifact
+	 * making them directly accessible.
+	 */
 	@Parameter(property = 'run.runnableLibraries')
-	public String runnableLibraries = 'bathe-runner'
+	public String runnableLibraries = 'bathe-booter'
+
+	/**
+	 * This lets us override the order in which the jar files will get unarchived into the final file
+	 */
+	@Parameter(property = 'run.libraryOrdering')
+	public String libraryOrdering
+
+	/**
+	 * If this is set, we will need to cycle through each of the jar files (including the current project) looking
+	 * for files and resources that need to make their way into the top level of the final artifact instead of
+	 * at an offset.
+	 *
+	 * Relative paths only: e.g. META-INF/baseconfig/
+	 *
+	 * Add trailing slash just in case of accidental match
+	 */
+	@Parameter(property = 'run.runnableOffsets')
+	public String runnableOffsets
+
+	@Parameter(property = 'run.runnableOffsetPreference')
+	public RunnablePreference runnablePreference = RunnablePreference.first
 
   FileOutputStream fos
   JarOutputStream jar
 	String[] runLibs
+	List<Artifact> sortedArtifacts = []
+	RunnableOffsetTracker tracker
 
-  protected void log() {
-    getLog().info("bathe ${extension()} generation, library offset ${libraryOffset}")
-  }
 
   @Override
   void execute() throws MojoExecutionException, MojoFailureException {
@@ -53,7 +80,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 		  return
 	  }
 
-	  log()
+	  getLog().info("bathe ${extension()} generation, library offset ${libraryOffset}")
 
 	  project.artifact.file = getGeneratedFile()
 
@@ -62,6 +89,14 @@ class BatheTimeMojo extends BaseBatheMojo {
 
 	  runLibs = runnableLibraries.tokenize(',')
 
+	  sortArtifacts()   // make sure we have them in processing order
+
+	  initializeTracker() // extract out the list of files we are going to use in the main war
+
+
+	  extractTracking()
+
+	  // now start processing the files
 	  if (isWar()) {
 		  extractWebAppDirectory()
 	  }
@@ -78,17 +113,63 @@ class BatheTimeMojo extends BaseBatheMojo {
     jar.close()
   }
 
+	void initializeTracker() {
+		tracker = new RunnableOffsetTracker(runnableOffsets, runnablePreference)
+		tracker.checkProjectForResources(project.basedir, isWar())
+
+		// check non runnable files first
+		filterLibraries { Artifact artifact ->
+			if (!artifactRunnable(artifact)) {
+				tracker.checkArtifactForResources(artifact)
+			}
+		}
+
+		// then runnable ones
+		filterLibraries { Artifact artifact ->
+			if (artifactRunnable(artifact)) {
+				tracker.checkArtifactForResources(artifact)
+			}
+		}
+	}
+
+	/**
+	 * takes all of the tracked files
+	 */
+	protected void extractTracking() {
+		tracker.sortedTrackingItems().each { RunnableOffsetTracker.Source source ->
+			if (source.name == 'META-INF/MANIFEST.MF') {
+				return
+			}
+
+			if (source.projectOffset) {
+				streamFile(source.projectOffset, source.name)
+			} else {
+				JarFile jf = new JarFile(source.artifact.file)
+				Enumeration<JarEntry> entries = jf.entries()
+				while (entries.hasMoreElements()) {
+					JarEntry je = entries.nextElement()
+					if (je.name == source.name) {
+						streamJarToJar(je, source.name, jf.getInputStream(je))
+					}
+				}
+			}
+		}
+	}
+
 	/**
 	 * This is typically where the WEB-INF/web.xml is stored along with anything else the user requires
 	 */
 	protected void extractWebAppDirectory() {
-		File classesDir = new File(project.basedir, "src/main/webapp")
+		File webappDirectory = new File(project.basedir, "src/main/webapp")
 
-		if (classesDir.exists()) {
-			recursiveCopy(classesDir, '')
+		if (webappDirectory.exists()) {
+			recursiveCopy(webappDirectory, '')
 		}
 	}
 
+	/**
+	 * Runnable artifacts are those that get extracted straight into the final jar without offset.
+	 */
 	protected boolean artifactRunnable(Artifact artifact) {
 		for(String runlib : runLibs) {
 			if (artifact.artifactId.contains(runlib)) {
@@ -102,7 +183,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 	protected void extractRunnableLibraries(String[] runLibs) {
 		filterLibraries { Artifact artifact ->
 			if (artifactRunnable(artifact)) {
-				extractArtifact(artifact, '')
+				extractArtifact(artifact, '', true)
 			}
 		}
 	}
@@ -110,31 +191,35 @@ class BatheTimeMojo extends BaseBatheMojo {
 	protected void extractOtherLibraries(String[] runLibs) {
 		filterLibraries { Artifact artifact ->
 			if (!artifactRunnable(artifact)) {
-				extractArtifact(artifact, libraryOffset)
+				extractArtifact(artifact, libraryOffset, false)
 			}
 		}
 	}
 
 	protected void filterLibraries(Closure c) {
-		project.artifacts.each { Artifact artifact ->
+		sortedArtifacts.each { Artifact artifact ->
 			if (artifact.scope == 'compile' || artifact.scope == 'runtime') {
 				c(artifact)
 			}
 		}
 	}
 
+	protected void streamFile(File file, String name) {
+		if (!file.isDirectory()) {
+			JarEntry ze = new JarEntry(name)
+			jar.putNextEntry(ze)
+			InputStream is = new FileInputStream(file)
+			IOUtils.copy(is, jar)
+			jar.closeEntry()
+			is.close()
+		}
+	}
+
   protected void addJarFile(File file, String offset) {
     String offsetDir = offset.endsWith('/') ? offset : offset + '/'
 
-    String name = offsetDir + file.name
-
-    JarEntry ze = new JarEntry(name)
-
-    jar.putNextEntry(ze)
-    InputStream is = new FileInputStream(file)
-    IOUtils.copy(is, jar)
-    jar.closeEntry()
-    is.close()
+	  if (!tracker.tracking(offsetDir + file.name))
+      streamFile(file, offsetDir + file.name)
   }
 
 	protected Map<String, String> existingDirs = [:]
@@ -176,7 +261,6 @@ class BatheTimeMojo extends BaseBatheMojo {
     }
   }
 
-
   protected void addJarEntry(JarEntry jarEntry, InputStream is, String offset) {
     String offsetDir
 
@@ -187,18 +271,26 @@ class BatheTimeMojo extends BaseBatheMojo {
 
     String internalName = offsetDir + jarEntry.name
 
-    // bully the zip entry into copying the existing one and then reset its name to the new name
-    JarEntry ze = new JarEntry(jarEntry)
-    Field f = ze.class.getSuperclass().getDeclaredField("name")
-    f.setAccessible(true)
-    f.set(ze, internalName)
+	  if (tracker.tracking(internalName)) {
+		  return // skip this file
+	  }
 
-    jar.putNextEntry(ze)
-    IOUtils.copy(is, jar)
-    jar.closeEntry()
+	  streamJarToJar(jarEntry, internalName, is)
   }
 
-  protected void extractArtifact(Artifact artifact, String offset) {
+	protected void streamJarToJar(JarEntry jarEntry, String internalName, InputStream is) {
+		// bully the zip entry into copying the existing one and then reset its name to the new name
+		JarEntry ze = new JarEntry(jarEntry)
+		Field f = ze.class.getSuperclass().getDeclaredField("name")
+		f.setAccessible(true)
+		f.set(ze, internalName)
+
+		jar.putNextEntry(ze)
+		IOUtils.copy(is, jar)
+		jar.closeEntry()
+	}
+
+  protected void extractArtifact(Artifact artifact, String offset, boolean checkTracker) {
     String offsetDir = offset.endsWith('/') ? offset : offset + '/'
 
     if (offset) {
@@ -216,10 +308,14 @@ class BatheTimeMojo extends BaseBatheMojo {
     JarFile f = new JarFile(artifact.getFile())
 
     f.entries().each { JarEntry entry ->
-      if (entry.isDirectory())
-        addJarDirectory(offsetDir + entry.name)
-      else if (entry.name != 'META-INF/MANIFEST.MF' || offsetDir != '')
-        addJarEntry(entry, f.getInputStream(entry), offsetDir)
+      if (entry.isDirectory()) {
+	      if (!tracker.tracking(offsetDir + entry.name)) {
+		      addJarDirectory(offsetDir + entry.name)
+	      }
+      } else if (entry.name != 'META-INF/MANIFEST.MF' || offsetDir != '') {
+	      addJarEntry(entry, f.getInputStream(entry), offsetDir)
+      }
+
     }
   }
 
@@ -240,5 +336,53 @@ class BatheTimeMojo extends BaseBatheMojo {
     jar.closeEntry()
   }
 
+	/**
+	 * This takes the artifacts that are listed in the project and sorts them according to the override settings
+	 */
+	public void sortArtifacts() {
+		project.artifacts.each { Artifact artifact ->
+			sortedArtifacts.add(artifact)
+		}
+
+		if (libraryOrdering != null) {
+			determineSorting(sortedArtifacts)
+		}
+	}
+
+	protected void determineSorting(List<Artifact> jars) {
+		final List<String> order = []
+
+		libraryOrdering.trim().tokenize(',').each { String part ->
+			order.add(part.trim())
+		}
+
+		jars.sort(new Comparator<Artifact>() {
+			@Override
+			public int compare(Artifact s1, Artifact s2) {
+
+				int s1Pos = findPartial(s1.artifactId, order);
+				int s2Pos = findPartial(s2.artifactId, order);
+
+				if (s1Pos < s2Pos) return -1;
+				if (s1Pos == s2Pos) return 0;
+				if (s1Pos > s2Pos) return 1;
+
+				return 0;
+			}
+		})
+	}
+
+	protected int findPartial(String jarName, List<String> order) {
+		int max = order.size()
+
+		for(int count = 0; count < max; count ++) {
+			if (jarName.contains(order[count])) {
+				int val = ((order.size() - count) * -1) - 1;
+				return val
+			}
+		}
+
+		return 0;
+	}
 
 }
