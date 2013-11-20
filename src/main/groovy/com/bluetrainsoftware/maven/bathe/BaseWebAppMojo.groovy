@@ -14,6 +14,7 @@ import org.apache.maven.plugins.annotations.ResolutionScope
 import org.apache.maven.project.MavenProject
 
 /**
+ * This just expects the booter and any dependencies to be in the classpath. It is designed for running from within an IDE.
  *
  * @author: Richard Vowles - https://plus.google.com/+RichardVowles
  */
@@ -39,7 +40,6 @@ class BaseWebAppMojo extends AbstractMojo {
 
 		getLog().info("Starting Bathe Booter: jump-class ${jumpClass}, args ${tokArgs.join(' ')}")
 
-
 		RunWebAppBatheBooter booter = new RunWebAppBatheBooter()
 		new BatheInitializerProcessor().process(passingArgs, jumpClass, loader);
 		booter.exec(loader, null, jumpClass, passingArgs)
@@ -48,7 +48,7 @@ class BaseWebAppMojo extends AbstractMojo {
 	class RunWebAppBatheBooter extends BatheBooter {
 		@Override
 		public void exec(ClassLoader loader, File runnable, String runnerClass, String[] args) {
-			BatheBooter.exec(loader, runnable, runnerClass, args)
+			super.exec(loader, runnable, runnerClass, args)
 		}
 	}
 }

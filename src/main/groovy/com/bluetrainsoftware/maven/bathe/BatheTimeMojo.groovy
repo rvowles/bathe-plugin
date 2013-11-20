@@ -72,6 +72,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 	String[] runLibs
 	List<Artifact> sortedArtifacts = []
 	RunnableOffsetTracker tracker
+	List<String> offsetsForManifest = []
 
 
   @Override
@@ -231,6 +232,8 @@ class BatheTimeMojo extends BaseBatheMojo {
 	  if (!existingDirs[name]) {
 		  existingDirs[name] = name
 
+		  offsetsForManifest.add(name)
+
 	    JarEntry ze = new JarEntry(name)
 	    jar.putNextEntry(ze)
 	    jar.closeEntry()
@@ -320,12 +323,15 @@ class BatheTimeMojo extends BaseBatheMojo {
   }
 
   protected void createManifest() {
-    String manifest = "Manifest-Version: 1.0\nMain-Class: ${mainClass}\nCreated-by: Bathe/Time\nImplementation-Version: ${project.version}\n"
+    StringBuilder manifest = new StringBuilder("Manifest-Version: 1.0\nMain-Class: ${mainClass}\nCreated-by: Bathe/Time\nImplementation-Version: ${project.version}\n")
 
     if (jumpClass)
-      manifest = manifest + "Jump-Class: ${jumpClass}\n"
+      manifest.append("Jump-Class: ${jumpClass}\n")
 
-	  manifest += "Jar-Offset: ${libraryOffset}\n"
+	  manifest.append( "Jar-Offset: ${libraryOffset}\n")
+	  manifest.append( "Bathe-Classpath: ")
+	  manifest.append( offsetsForManifest.join(',') )
+	  manifest.append("\n")
 
     byte[] bytes = manifest.toString().bytes
 
