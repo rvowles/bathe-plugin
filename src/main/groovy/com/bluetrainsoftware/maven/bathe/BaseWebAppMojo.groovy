@@ -3,6 +3,8 @@ package com.bluetrainsoftware.maven.bathe
 import bathe.BatheBooter
 import bathe.BatheInitializerProcessor
 import groovy.transform.CompileStatic
+import groovy.transform.TypeCheckingMode
+import org.apache.maven.artifact.Artifact
 import org.apache.maven.plugin.AbstractMojo
 import org.apache.maven.plugin.MojoExecutionException
 import org.apache.maven.plugin.MojoFailureException
@@ -36,19 +38,41 @@ class BaseWebAppMojo extends AbstractMojo {
 
 		List<String> tokArgs = booterArguments.tokenize(' ')
 		String[] passingArgs = tokArgs.toArray(new String[tokArgs.size()])
-		ClassLoader loader = getClass().getClassLoader()
+		URLClassLoader loader = getClassLoader()
+		ClassLoader currentClassLoader = Thread.currentThread().getContextClassLoader();
 
 		getLog().info("Starting Bathe Booter: jump-class ${jumpClass}, args ${tokArgs.join(' ')}")
 
-		RunWebAppBatheBooter booter = new RunWebAppBatheBooter()
-		new BatheInitializerProcessor().process(passingArgs, jumpClass, loader);
-		booter.exec(loader, null, jumpClass, passingArgs)
+		try {
+			Thread.currentThread().setContextClassLoader(loader);
+			Class booterClazz = loader.loadClass("bathe.BatheBooter")
+
+			callBooter(booterClazz, passingArgs, jumpClass, loader)
+		} finally {
+			Thread.currentThread().setContextClassLoader(currentClassLoader);
+			loader.close()
+		}
 	}
 
-	class RunWebAppBatheBooter extends BatheBooter {
-		@Override
-		public void exec(ClassLoader loader, File runnable, String runnerClass, String[] args) {
-			super.exec(loader, runnable, runnerClass, args)
+	@CompileStatic(value = TypeCheckingMode.SKIP)
+	private void callBooter(Class booterClazz, String[] args, String jumpClass, URLClassLoader loader) {
+		booterClazz.newInstance().runWithLoader(loader, null, jumpClass, args)
+	}
+
+	URLClassLoader getClassLoader() {
+		List<URL> urls = []
+
+		urls.add(new File(project.build.outputDirectory).toURI().toURL())
+
+		addExtraUrls(urls)
+
+		project.getArtifacts().each { Artifact artifact ->
+			urls.add(artifact.file.toURI().toURL())
 		}
+
+		return new URLClassLoader(urls.toArray(new URL[urls.size()]))
+	}
+
+	void addExtraUrls(List<URL> urls) {
 	}
 }
