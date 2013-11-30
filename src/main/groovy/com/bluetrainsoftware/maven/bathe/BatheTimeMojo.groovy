@@ -25,7 +25,7 @@ class BatheTimeMojo extends BaseBatheMojo {
   public static final String ARTIFACT_WAR = 'war'
 
   @Parameter(property = 'run.mainClass')
-  public String mainClass
+  public String mainClass = "bathe.BatheBooter"
 
   /**
    * A Jump-Class gives the Bathe-Booter a location of where to jump to.
@@ -108,8 +108,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 
 	  extractOtherLibraries(runLibs)
 
-    if (mainClass)
-      createManifest()
+    createManifest()
 
     jar.close()
   }
@@ -329,9 +328,11 @@ class BatheTimeMojo extends BaseBatheMojo {
       manifest.append("Jump-Class: ${jumpClass}\n")
 
 	  manifest.append( "Jar-Offset: ${libraryOffset}\n")
+/*
 	  manifest.append( "Bathe-Classpath: ")
 	  manifest.append( offsetsForManifest.join(',') )
 	  manifest.append("\n")
+*/
 
     byte[] bytes = manifest.toString().bytes
 
