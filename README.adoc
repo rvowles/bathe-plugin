@@ -1,0 +1,55 @@
+= The Bathe Plugin
+by Blue Train Software Ltd
+
+'Cause you want a _clean_ build.
+
+== Introduction
+
+The Bathe Plugin is a Maven Plugin that is intended for use in the final artifact of your build change - 
+the final jar or war, and is intended to be used to create a runnable artifact that does not need to unarchive itself onto disk anywhere,
+or use special resource loaders (only standard Java ones).
+
+It is intended to be used with the Bathe Runner - https://github.com/rvowles/bathe-runner - to re-ify your classpath,
+run a set of services in a pre-determined order and then jump to your "main" class. The Bathe Runner is separate from
+this artifact as it is typically used throughout your application artifacts to enable your application to run (we use it
+in test mode for our artifacts).
+
+The plugin efficiently creates a single jar of all the contents of the jar/zip files that are in the dependency tree. It offsets the
+dependencies with their artifact names and versions in the resulting zip file, this preserving unique names (unlike the Shade plugin which
+requires considerable tuning). When the jar is "run", the Bathe Runner creates classpaths with offsets into itself - the same as a web app
+does when referencing /WEB-INF/classes - you just also get /WEB-INF/jars/spring-core-3.23/... for example.
+
+== Using the Bathe Plugin
+
+You can issue specific goal commands, and you can, by changing the packaging have it automatically create the correct packaged applications.
+
+=== Configuration
+The plugin, if it is to be used when packaging and deploying your application under the standard Maven lifecycle, requires your packaging 
+to be either *bathe-war* or *bathe-jar*, the first creates an artifact ending in .war, the latter one ending in .jar. That is essentially 
+the only difference.
+
+[source,xml]
+.pom.xml
+----
+<packaging>bathe-jar</packaging>
+----
+
+=== Dependencies
+
+Typically you will be including the bathe-runner as a dependency at this level. You can have it include itself transitively or directly. It is recommended it is bought in via version range, it is also recommended that you create a composite of all of the bathe services that you will be using so you can easily include them as test dependencies in other artifacts. See the bathe-runner for more details on this.
+
+=== Goals
+
+The plugin has a number of goals, the default being *bathe:time*.
+
+* bathe:time - this builds your artifact
+* bathe:sponge - this runs your artifact with specified parameters, it creates a thread that monitors for shutdown. Used with integration testing.
+* bathe:rinse - this signals to your artifact to shut down by contacting the _sponge_ thread and asking it to destroy the process. Used with integration testing.
+* 
+
+=== bathe:time
+
+This will build your jar/war file. There are no mandatory parameters, but there are some you would typically configure:
+
+- jumpClass: this specifies the class that the Bathe Runner will jump to once it has completed configuration. It gets added to the manifest file.
+- 
