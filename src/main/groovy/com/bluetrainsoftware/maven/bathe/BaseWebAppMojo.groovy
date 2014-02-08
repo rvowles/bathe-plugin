@@ -54,6 +54,17 @@ class BaseWebAppMojo extends AbstractMojo {
 		}
 	}
 
+	protected void checkForWebDirs(List<URL> urls, String infix) {
+		File webappDir = new File(project.basedir, "src/${infix}/webapp")
+		if (webappDir.exists()) {
+			urls.add(webappDir.toURI().toURL())
+		}
+		webappDir = new File(project.basedir, "src/${infix}/resources/META-INF/resources")
+		if (webappDir.exists()) {
+			urls.add(webappDir.toURI().toURL())
+		}
+	}
+
 	@CompileStatic(value = TypeCheckingMode.SKIP)
 	private void callBooter(Class booterClazz, String[] args, String jumpClass, URLClassLoader loader) {
 		booterClazz.newInstance().runWithLoader(loader, null, jumpClass, args)
@@ -63,6 +74,7 @@ class BaseWebAppMojo extends AbstractMojo {
 		List<URL> urls = []
 
 		urls.add(new File(project.build.outputDirectory).toURI().toURL())
+		checkForWebDirs(urls, "main")
 
 		addExtraUrls(urls)
 

@@ -14,5 +14,9 @@ class TestScopeWebAppMojo extends BaseWebAppMojo {
 	@Override
 	void addExtraUrls(List<URL> urls) {
 		urls.add(new File(project.build.testOutputDirectory).toURI().toURL())
+
+		checkForWebDirs(urls, "test")
+
+
 	}
 }

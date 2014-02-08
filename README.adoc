@@ -9,7 +9,7 @@ The Bathe Plugin is a Maven Plugin that is intended for use in the final artifac
 the final jar or war, and is intended to be used to create a runnable artifact that does not need to unarchive itself onto disk anywhere,
 or use special resource loaders (only standard Java ones).
 
-It is intended to be used with the Bathe Runner - https://github.com/rvowles/bathe-runner - to re-ify your classpath,
+It is intended to be used with the Bathe Booter - https://github.com/rvowles/bathe-booter - to re-ify your classpath,
 run a set of services in a pre-determined order and then jump to your "main" class. The Bathe Runner is separate from
 this artifact as it is typically used throughout your application artifacts to enable your application to run (we use it
 in test mode for our artifacts).
