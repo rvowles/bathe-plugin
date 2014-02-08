@@ -9,7 +9,7 @@
 
   <groupId>com.bluetrainsoftware.maven</groupId>
   <artifactId>bathe-plugin</artifactId>
-  <version>1.3-SNAPSHOT</version>
+  <version>1.3</version>
   <packaging>maven-plugin</packaging>
 
   <name>Maven Bathe plugin</name>
@@ -23,7 +23,7 @@
     <connection>scm:git:git@github.com:rvowles/bathe-plugin</connection>
     <developerConnection>scm:git:git@github.com:rvowles/bathe-plugin</developerConnection>
     <url>http://github.com/rvowles/bathe-plugin</url>
-    <tag>HEAD</tag>
+    <tag>bathe-plugin-1.3</tag>
   </scm>
 
   <dependencies>
