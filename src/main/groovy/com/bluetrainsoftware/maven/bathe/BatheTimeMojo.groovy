@@ -3,41 +3,37 @@ package com.bluetrainsoftware.maven.bathe
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.apache.maven.artifact.Artifact
-import org.apache.maven.plugin.AbstractMojo
 import org.apache.maven.plugin.MojoExecutionException
 import org.apache.maven.plugin.MojoFailureException
 import org.apache.maven.plugins.annotations.LifecyclePhase
 import org.apache.maven.plugins.annotations.Mojo
 import org.apache.maven.plugins.annotations.Parameter
 import org.apache.maven.plugins.annotations.ResolutionScope
-import org.apache.maven.project.MavenProject
 
 import java.lang.reflect.Field
 import java.util.jar.JarEntry
 import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipFile
 
 @CompileStatic
 @Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
 class BatheTimeMojo extends BaseBatheMojo {
-  public static final String ARTIFACT_WAR = 'war'
+	public static final String ARTIFACT_WAR = 'war'
 
-  @Parameter(property = 'run.mainClass')
-  public String mainClass = "bathe.BatheBooter"
+	@Parameter(property = 'run.mainClass')
+	public String mainClass = "bathe.BatheBooter"
 
-  /**
-   * A Jump-Class gives the Bathe-Booter a location of where to jump to.
-   */
-  @Parameter(property = 'run.jumpClass')
-  public String jumpClass
+	/**
+	 * A Jump-Class gives the Bathe-Booter a location of where to jump to.
+	 */
+	@Parameter(property = 'run.jumpClass')
+	public String jumpClass
 
 	/**
 	 * What offset within the final jar file the artifacts will take.
- 	 */
-  @Parameter(property = 'run.libraryOffset')
-  public String libraryOffset = 'WEB-INF/jars'
+	 */
+	@Parameter(property = 'run.libraryOffset')
+	public String libraryOffset = 'WEB-INF/jars'
 
 	/**
 	 * These are a list of libraries who's entire contents will unzipped into the top level jar/war artifact
@@ -67,51 +63,51 @@ class BatheTimeMojo extends BaseBatheMojo {
 	@Parameter(property = 'run.runnableOffsetPreference')
 	public RunnablePreference runnablePreference = RunnablePreference.first
 
-  FileOutputStream fos
-  JarOutputStream jar
+	FileOutputStream fos
+	JarOutputStream jar
 	String[] runLibs
 	List<Artifact> sortedArtifacts = []
 	RunnableOffsetTracker tracker
 	List<String> offsetsForManifest = []
 
 
-  @Override
-  void execute() throws MojoExecutionException, MojoFailureException {
-	  if (project.packaging == 'pom') {
-		  return
-	  }
+	@Override
+	void execute() throws MojoExecutionException, MojoFailureException {
+		if (project.packaging == 'pom') {
+			return
+		}
 
-	  getLog().info("bathe ${extension()} generation, library offset ${libraryOffset}")
+		getLog().info("bathe ${extension()} generation, library offset ${libraryOffset}")
 
-	  project.artifact.file = getGeneratedFile()
+		project.artifact.file = getGeneratedFile()
 
-    fos = new FileOutputStream(project.artifact.file)
-    jar = new JarOutputStream(fos)
+		fos = new FileOutputStream(project.artifact.file)
+		jar = new JarOutputStream(fos)
 
-	  runLibs = runnableLibraries.tokenize(',')
+		runLibs = runnableLibraries.tokenize(',')
 
-	  sortArtifacts()   // make sure we have them in processing order
+		sortArtifacts()   // make sure we have them in processing order
 
-	  initializeTracker() // extract out the list of files we are going to use in the main war
+		initializeTracker() // extract out the list of files we are going to use in the main war
 
 
-	  extractTracking()
+		extractTracking()
 
-	  // now start processing the files
-	  if (isWar()) {
-		  extractWebAppDirectory()
-	  }
+		// now start processing the files
+		if (isWar()) {
+			extractWebAppDirectory()
+		}
 
-	  extractRunnableLibraries(runLibs)
+		extractRunnableLibraries(runLibs)
 
 		copyBuildDirectory(libraryOffset + "/classes")
 
-	  extractOtherLibraries(runLibs)
+		extractOtherLibraries(runLibs)
 
-    createManifest()
+		createManifest()
 
-    jar.close()
-  }
+		jar.close()
+	}
 
 	void initializeTracker() {
 		tracker = new RunnableOffsetTracker(runnableOffsets, runnablePreference)
@@ -171,7 +167,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 	 * Runnable artifacts are those that get extracted straight into the final jar without offset.
 	 */
 	protected boolean artifactRunnable(Artifact artifact) {
-		for(String runlib : runLibs) {
+		for (String runlib : runLibs) {
 			if (artifact.artifactId.contains(runlib)) {
 				return true
 			}
@@ -215,70 +211,68 @@ class BatheTimeMojo extends BaseBatheMojo {
 		}
 	}
 
-  protected void addJarFile(File file, String offset) {
-    String offsetDir = offset.endsWith('/') ? offset : offset + '/'
+	protected void addJarFile(File file, String offset) {
+		String offsetDir = offset.endsWith('/') ? offset : offset + '/'
 
-	  if (!tracker.tracking(offsetDir + file.name))
-      streamFile(file, offsetDir + file.name)
-  }
+		if (!tracker.tracking(offsetDir + file.name))
+			streamFile(file, offsetDir + file.name)
+	}
 
 	protected Map<String, String> existingDirs = [:]
 
-  protected String addJarDirectory(String dir) {
+	protected String addJarDirectory(String dir) {
 
-    String name = dir.endsWith('/') ? dir : dir + '/'
+		String name = dir.endsWith('/') ? dir : dir + '/'
 
-	  if (!existingDirs[name]) {
-		  existingDirs[name] = name
+		if (!existingDirs[name]) {
+			existingDirs[name] = name
 
-		  offsetsForManifest.add(name)
+			offsetsForManifest.add(name)
 
-	    JarEntry ze = new JarEntry(name)
-	    jar.putNextEntry(ze)
-	    jar.closeEntry()
-	  }
+			JarEntry ze = new JarEntry(name)
+			jar.putNextEntry(ze)
+			jar.closeEntry()
+		}
 
-    return name
-  }
+		return name
+	}
 
-  protected void recursiveCopy(File curDir, String offset) {
-    curDir.listFiles().each { File file ->
-      if (file.name.startsWith(".")) return
+	protected void recursiveCopy(File curDir, String offset) {
+		curDir.listFiles().each { File file ->
+			if (file.directory) {
+				recursiveCopy(file, addJarDirectory(offset + file.name))
+			} else {
+				addJarFile(file, offset)
+			}
+		}
+	}
 
-      if (file.directory) {
-        recursiveCopy(file, addJarDirectory(offset + file.name))
-      } else {
-        addJarFile(file, offset)
-      }
-    }
-  }
+	protected void copyBuildDirectory(String offset) {
+		String dirOffset = addJarDirectory(offset)
 
-  protected void copyBuildDirectory(String offset) {
-    String dirOffset = addJarDirectory(offset)
+		File classesDir = new File(project.build.outputDirectory)
 
-    File classesDir = new File(project.build.outputDirectory)
+		if (classesDir.exists()) {
+			recursiveCopy(classesDir, dirOffset)
+		}
+	}
 
-    if (classesDir.exists()) {
-      recursiveCopy(classesDir, dirOffset)
-    }
-  }
+	protected void addJarEntry(JarEntry jarEntry, InputStream is, String offset) {
+		String offsetDir
 
-  protected void addJarEntry(JarEntry jarEntry, InputStream is, String offset) {
-    String offsetDir
+		if (offset)
+			offsetDir = offset.endsWith('/') ? offset : offset + '/'
+		else
+			offsetDir = ''
 
-    if (offset)
-      offsetDir = offset.endsWith('/') ? offset : offset + '/'
-    else
-      offsetDir = ''
+		String internalName = offsetDir + jarEntry.name
 
-    String internalName = offsetDir + jarEntry.name
+		if (tracker.tracking(internalName)) {
+			return // skip this file
+		}
 
-	  if (tracker.tracking(internalName)) {
-		  return // skip this file
-	  }
-
-	  streamJarToJar(jarEntry, internalName, is)
-  }
+		streamJarToJar(jarEntry, internalName, is)
+	}
 
 	protected void streamJarToJar(JarEntry jarEntry, String internalName, InputStream is) {
 		// bully the zip entry into copying the existing one and then reset its name to the new name
@@ -292,56 +286,59 @@ class BatheTimeMojo extends BaseBatheMojo {
 		jar.closeEntry()
 	}
 
-  protected void extractArtifact(Artifact artifact, String offset, boolean checkTracker) {
-    String offsetDir = offset.endsWith('/') ? offset : offset + '/'
+	protected void extractArtifact(Artifact artifact, String offset, boolean checkTracker) {
+		String offsetDir = offset.endsWith('/') ? offset : offset + '/'
 
-    if (offset) {
-      String name = artifact.file.name
+		if (offset) {
+			String name = artifact.file.name
 
-      if (name.endsWith(".jar")) {
-        name = name.substring(0, name.length() - 4)
-      }
+			if (name.endsWith(".jar")) {
+				name = name.substring(0, name.length() - 4)
+			}
 
-      offsetDir = offsetDir + name + '/'
-    } else {
-      offsetDir = ''
-    }
+			offsetDir = offsetDir + name + '/'
+		} else {
+			offsetDir = ''
+		}
 
-    JarFile f = new JarFile(artifact.getFile())
+		JarFile f = new JarFile(artifact.getFile())
 
-    f.entries().each { JarEntry entry ->
-      if (entry.isDirectory()) {
-	      if (!tracker.tracking(offsetDir + entry.name)) {
-		      addJarDirectory(offsetDir + entry.name)
-	      }
-      } else if (entry.name != 'META-INF/MANIFEST.MF' || offsetDir != '') {
-	      addJarEntry(entry, f.getInputStream(entry), offsetDir)
-      }
+		f.entries().each { JarEntry entry ->
+			if (entry.isDirectory()) {
+				if (!tracker.tracking(offsetDir + entry.name)) {
+					addJarDirectory(offsetDir + entry.name)
+				}
+			} else if (entry.name != 'META-INF/MANIFEST.MF' || offsetDir != '') {
+				addJarEntry(entry, f.getInputStream(entry), offsetDir)
+			}
 
-    }
-  }
+		}
+	}
 
-  protected void createManifest() {
-    StringBuilder manifest = new StringBuilder("Manifest-Version: 1.0\nMain-Class: ${mainClass}\nCreated-by: Bathe/Time\nImplementation-Version: ${project.version}\n")
+	protected void createManifest() {
+		StringBuilder manifest = new StringBuilder("Manifest-Version: 1.0\n" +
+				"Main-Class: ${mainClass}\n" +
+				"Created-by: Bathe/Time\n" +
+				"Implementation-Version: ${project.version}\n")
 
-    if (jumpClass)
-      manifest.append("Jump-Class: ${jumpClass}\n")
+		if (jumpClass)
+			manifest.append("Jump-Class: ${jumpClass}\n")
 
-	  manifest.append( "Jar-Offset: ${libraryOffset}\n")
+		manifest.append("Jar-Offset: ${libraryOffset}\n")
 /*
-	  manifest.append( "Bathe-Classpath: ")
-	  manifest.append( offsetsForManifest.join(',') )
-	  manifest.append("\n")
+		manifest.append( "Bathe-Classpath: ")
+		manifest.append( offsetsForManifest.join(',') )
+		manifest.append("\n")
 */
 
-    byte[] bytes = manifest.toString().bytes
+		byte[] bytes = manifest.toString().bytes
 
-    JarEntry ze = new JarEntry("META-INF/MANIFEST.MF")
-    ze.size = bytes.size()
-    jar.putNextEntry(ze)
-    jar.write(bytes)
-    jar.closeEntry()
-  }
+		JarEntry ze = new JarEntry("META-INF/MANIFEST.MF")
+		ze.size = bytes.size()
+		jar.putNextEntry(ze)
+		jar.write(bytes)
+		jar.closeEntry()
+	}
 
 	/**
 	 * This takes the artifacts that are listed in the project and sorts them according to the override settings
@@ -382,7 +379,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 	protected int findPartial(String jarName, List<String> order) {
 		int max = order.size()
 
-		for(int count = 0; count < max; count ++) {
+		for (int count = 0; count < max; count++) {
 			if (jarName.contains(order[count])) {
 				int val = ((order.size() - count) * -1) - 1;
 				return val

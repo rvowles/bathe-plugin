@@ -9,6 +9,6 @@ import org.apache.maven.plugins.annotations.ResolutionScope
  *
  * @author: Richard Vowles - https://plus.google.com/+RichardVowles
  */
-@Mojo(name="run", requiresProject = true, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME, defaultPhase = LifecyclePhase.NONE)
+@Mojo(name = "run", requiresProject = true, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME, defaultPhase = LifecyclePhase.NONE)
 class RunScopeWebAppMojo extends BaseWebAppMojo {
 }

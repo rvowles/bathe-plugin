@@ -11,15 +11,17 @@ import org.apache.maven.plugin.MojoFailureException
  */
 @CompileStatic
 class RinseMojo extends BaseBatheMojo {
-  @Override
-  void execute() throws MojoExecutionException, MojoFailureException {
-	  if (project.packaging == 'pom') {
-		  return
-	  }
 
-	  if (SpongeTestMojo.runner) {
-      getLog().info("bathe-rinse: shutting down process!")
-      SpongeTestMojo.runner.destroy()
-    }
-  }
+	@Override
+	void execute() throws MojoExecutionException, MojoFailureException {
+		if (project.packaging == 'pom') {
+			return
+		}
+
+		if (SpongeTestMojo.runner) {
+			getLog().info("bathe-rinse: shutting down process!")
+			SpongeTestMojo.runner.destroy()
+		}
+	}
+
 }

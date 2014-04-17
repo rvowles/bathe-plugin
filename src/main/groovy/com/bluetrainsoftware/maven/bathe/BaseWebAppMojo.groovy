@@ -1,7 +1,5 @@
 package com.bluetrainsoftware.maven.bathe
 
-import bathe.BatheBooter
-import bathe.BatheInitializerProcessor
 import groovy.transform.CompileStatic
 import groovy.transform.TypeCheckingMode
 import org.apache.maven.artifact.Artifact
@@ -9,10 +7,7 @@ import org.apache.maven.plugin.AbstractMojo
 import org.apache.maven.plugin.MojoExecutionException
 import org.apache.maven.plugin.MojoFailureException
 import org.apache.maven.plugins.annotations.Component
-import org.apache.maven.plugins.annotations.LifecyclePhase
-import org.apache.maven.plugins.annotations.Mojo
 import org.apache.maven.plugins.annotations.Parameter
-import org.apache.maven.plugins.annotations.ResolutionScope
 import org.apache.maven.project.MavenProject
 
 /**
@@ -22,6 +17,7 @@ import org.apache.maven.project.MavenProject
  */
 @CompileStatic
 class BaseWebAppMojo extends AbstractMojo {
+
 	@Component
 	MavenProject project
 
@@ -59,6 +55,7 @@ class BaseWebAppMojo extends AbstractMojo {
 		if (webappDir.exists()) {
 			urls.add(webappDir.toURI().toURL())
 		}
+
 		webappDir = new File(project.basedir, "src/${infix}/resources/META-INF/resources")
 		if (webappDir.exists()) {
 			urls.add(webappDir.toURI().toURL())
@@ -87,4 +84,5 @@ class BaseWebAppMojo extends AbstractMojo {
 
 	void addExtraUrls(List<URL> urls) {
 	}
+
 }

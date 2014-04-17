@@ -3,7 +3,6 @@ package com.bluetrainsoftware.maven.bathe
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import org.apache.maven.artifact.Artifact
-import org.apache.maven.project.MavenProject
 
 import java.util.jar.JarEntry
 import java.util.jar.JarFile
@@ -23,10 +22,12 @@ class RunnableOffsetTracker {
 	}
 
 	public class Source {
+
 		/**
 		 * when the source is an artifact
 		 */
 		Artifact artifact
+
 		/**
 		 * when the project is the current project, this is the offset directory
 		 */
@@ -43,6 +44,7 @@ class RunnableOffsetTracker {
 			this.name = name
 			this.projectOffset = offset
 		}
+
 	}
 
 	boolean isActive() {
@@ -59,8 +61,6 @@ class RunnableOffsetTracker {
 		}
 	}
 
-
-
 	/**
 	 * This could be a regex, but for the moment I want to keep it simple
 	 *
@@ -72,7 +72,7 @@ class RunnableOffsetTracker {
 			return false
 		}
 
-		for(String offset: offsets) {
+		for (String offset : offsets) {
 			if (check.startsWith(offset)) {
 				return true
 			}
@@ -86,7 +86,7 @@ class RunnableOffsetTracker {
 	}
 
 	Collection<Source> sortedTrackingItems() {
-		return sourceMap.values().sort(new Comparator<Source>(){
+		return sourceMap.values().sort(new Comparator<Source>() {
 			@Override
 			int compare(Source o1, Source o2) {
 				return o1.name.compareTo(o2.name)
