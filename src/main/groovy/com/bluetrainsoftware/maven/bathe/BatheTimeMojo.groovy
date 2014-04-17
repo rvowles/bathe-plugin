@@ -239,8 +239,6 @@ class BatheTimeMojo extends BaseBatheMojo {
 
 	protected void recursiveCopy(File curDir, String offset) {
 		curDir.listFiles().each { File file ->
-			if (file.name.startsWith(".")) return
-
 			if (file.directory) {
 				recursiveCopy(file, addJarDirectory(offset + file.name))
 			} else {
