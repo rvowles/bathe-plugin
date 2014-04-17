@@ -9,14 +9,14 @@ import org.apache.maven.plugins.annotations.ResolutionScope
  *
  * @author: Richard Vowles - https://plus.google.com/+RichardVowles
  */
-@Mojo(name="test", requiresProject = false, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.PACKAGE)
+@Mojo(name = "test", requiresProject = false, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.PACKAGE)
 class TestScopeWebAppMojo extends BaseWebAppMojo {
+
 	@Override
 	void addExtraUrls(List<URL> urls) {
 		urls.add(new File(project.build.testOutputDirectory).toURI().toURL())
 
 		checkForWebDirs(urls, "test")
-
-
 	}
+
 }

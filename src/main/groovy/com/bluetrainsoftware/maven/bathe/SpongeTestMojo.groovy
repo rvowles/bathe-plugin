@@ -17,109 +17,111 @@ import org.apache.maven.plugins.annotations.ResolutionScope
 @CompileStatic
 @Mojo(name = 'sponge', requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
 class SpongeTestMojo extends BaseBatheMojo {
-  @Parameter(property = 'run.args')
-  public String args
 
-  @Parameter(property = 'run.xargs')
-  public String xArgs
+	@Parameter(property = 'run.args')
+	public String args
 
-  @Parameter(property = 'process.wait')
-  Boolean processWait
+	@Parameter(property = 'run.xargs')
+	public String xArgs
 
-  public static Process runner
-  public static Integer returnCode
+	@Parameter(property = 'process.wait')
+	Boolean processWait
 
-  protected void log(String msg) {
-    getLog().info('bathe-sponge: ' + msg)
-  }
+	public static Process runner
+	public static Integer returnCode
 
-  @Override
-  void execute() throws MojoExecutionException, MojoFailureException {
-	  if (project.packaging == 'pom') {
-		  return
-	  }
+	protected void log(String msg) {
+		getLog().info('bathe-sponge: ' + msg)
+	}
 
-	  File execFile = generatedFile
+	@Override
+	void execute() throws MojoExecutionException, MojoFailureException {
+		if (project.packaging == 'pom') {
+			return
+		}
 
-    if (!execFile.exists()) {
-      log('No runnable jar/war, skipping')
-      return // skip test
-    }
+		File execFile = generatedFile
 
-    List<String> passedArguments = []
+		if (!execFile.exists()) {
+			log('No runnable jar/war, skipping')
+			return // skip test
+		}
 
-    if (xArgs) {
-      passedArguments.addAll(xArgs.replace('{}', execFile.absolutePath).split(' '))
-    }
+		List<String> passedArguments = []
 
-    passedArguments.add(execFile.absolutePath)
+		if (xArgs) {
+			passedArguments.addAll(xArgs.replace('{}', execFile.absolutePath).split(' '))
+		}
 
-    if (args) {
-      passedArguments.addAll(args.replace('{}', execFile.absolutePath).split(' '))
-    }
+		passedArguments.add(execFile.absolutePath)
 
-    createJavaProcess(passedArguments)
+		if (args) {
+			passedArguments.addAll(args.replace('{}', execFile.absolutePath).split(' '))
+		}
 
-    if (processWait)
-      new MonitorProcess().run()
-    else
-      new Thread(new MonitorProcess()).start()
-  }
+		createJavaProcess(passedArguments)
 
-  class MonitorProcess implements Runnable {
+		if (processWait)
+			new MonitorProcess().run()
+		else
+			new Thread(new MonitorProcess()).start()
+	}
 
-    @Override
-    void run() {
-      BufferedReader processOutputReader = null;
-      try {
-        processOutputReader = new BufferedReader(new InputStreamReader(runner.inputStream))
+	class MonitorProcess implements Runnable {
 
-        for (String line = processOutputReader.readLine(); line != null; line = processOutputReader.readLine()) {
-          log(line)
-        }
+		@Override
+		void run() {
+			BufferedReader processOutputReader = null;
+			try {
+				processOutputReader = new BufferedReader(new InputStreamReader(runner.inputStream))
 
-        returnCode = runner.waitFor()
+				for (String line = processOutputReader.readLine(); line != null; line = processOutputReader.readLine()) {
+					log(line)
+				}
 
-        if (returnCode)
-          log("bath-sponge: process result is ${returnCode}")
-        else
-          log('bath-sponge: was successful!')
+				returnCode = runner.waitFor()
 
-      } catch (IOException e) {
-        throw new MojoExecutionException('There was an error reading the output from Java.', e);
+				if (returnCode)
+					log("bath-sponge: process result is ${returnCode}")
+				else
+					log('bath-sponge: was successful!')
 
-      } catch (InterruptedException e) {
-        throw new MojoExecutionException('The Java process was interrupted.', e);
+			} catch (IOException e) {
+				throw new MojoExecutionException('There was an error reading the output from Java.', e);
 
-      } finally {
-        processOutputReader.close()
-      }
-    }
-  }
+			} catch (InterruptedException e) {
+				throw new MojoExecutionException('The Java process was interrupted.', e);
 
-  protected void createJavaProcess(List<String> args) {
-    ProcessBuilder builder
+			} finally {
+				processOutputReader.close()
+			}
+		}
+	}
 
-    if (File.separator == '\\') // Windows
-      builder = new ProcessBuilder('cmd', '/C', 'java')
-    else
-      builder = new ProcessBuilder('java');
+	protected void createJavaProcess(List<String> args) {
+		ProcessBuilder builder
 
-    List<String> command = builder.command();
+		if (File.separator == '\\') // Windows
+			builder = new ProcessBuilder('cmd', '/C', 'java')
+		else
+			builder = new ProcessBuilder('java');
 
-    command.add('-jar')
-    command.addAll(args);
+		List<String> command = builder.command();
 
-    builder.redirectErrorStream(true);
+		command.add('-jar')
+		command.addAll(args);
 
-    try {
-      log(command.join(' '))
+		builder.redirectErrorStream(true);
 
-      builder.redirectErrorStream(true)
-      runner = builder.start();
+		try {
+			log(command.join(' '))
 
-    } catch (IOException e) {
-      throw new MojoExecutionException('There was an error executing Java.', e);
-    }
-  }
+			builder.redirectErrorStream(true)
+			runner = builder.start();
+
+		} catch (IOException e) {
+			throw new MojoExecutionException('There was an error executing Java.', e);
+		}
+	}
+
 }
