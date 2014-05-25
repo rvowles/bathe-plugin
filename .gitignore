@@ -1,1 +1,10 @@
-target
+
+# IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Build
+target/
+*.log
