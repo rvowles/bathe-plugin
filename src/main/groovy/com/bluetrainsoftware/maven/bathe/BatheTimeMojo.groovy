@@ -276,7 +276,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 
 	protected void streamJarToJar(JarEntry jarEntry, String internalName, InputStream is) {
 		// bully the zip entry into copying the existing one and then reset its name to the new name
-		JarEntry ze = new JarEntry(jarEntry)
+		JarEntry ze = new JarEntry(jarEntry.name)
 		Field f = ze.class.getSuperclass().getDeclaredField("name")
 		f.setAccessible(true)
 		f.set(ze, internalName)
