@@ -1,6 +1,5 @@
 package com.bluetrainsoftware.maven.bathe
 
-import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.apache.maven.artifact.Artifact
 import org.apache.maven.plugin.MojoExecutionException
@@ -9,19 +8,24 @@ import org.apache.maven.plugins.annotations.LifecyclePhase
 import org.apache.maven.plugins.annotations.Mojo
 import org.apache.maven.plugins.annotations.Parameter
 import org.apache.maven.plugins.annotations.ResolutionScope
+import org.springframework.boot.loader.tools.JarWriter
 
 import java.lang.reflect.Field
 import java.util.jar.JarEntry
 import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
+import java.util.zip.ZipException
 
-@CompileStatic
+//@CompileStatic
 @Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
 class BatheTimeMojo extends BaseBatheMojo {
 	public static final String ARTIFACT_WAR = 'war'
 
 	@Parameter(property = 'run.mainClass')
-	public String mainClass = "bathe.BatheBooter"
+	public String mainClass = 'org.springframework.boot.loader.JarLauncher'
+
+	@Parameter(property = 'run.startClass')
+	public String startClass = "bathe.BatheBooter"
 
 	/**
 	 * A Jump-Class gives the Bathe-Booter a location of where to jump to.
@@ -33,14 +37,14 @@ class BatheTimeMojo extends BaseBatheMojo {
 	 * What offset within the final jar file the artifacts will take.
 	 */
 	@Parameter(property = 'run.libraryOffset')
-	public String libraryOffset = 'WEB-INF/jars'
+	public String libraryOffset = 'lib'
 
 	/**
 	 * These are a list of libraries who's entire contents will unzipped into the top level jar/war artifact
 	 * making them directly accessible.
 	 */
 	@Parameter(property = 'run.runnableLibraries')
-	public String runnableLibraries = 'bathe-booter'
+	public String runnableLibraries = 'bathe-booter,spring-boot-loader'
 
 	/**
 	 * This lets us override the order in which the jar files will get unarchived into the final file
@@ -77,6 +81,10 @@ class BatheTimeMojo extends BaseBatheMojo {
 			return
 		}
 
+		if (!libraryOffset.endsWith('/')) {
+			libraryOffset += '/'
+		}
+
 		getLog().info("bathe ${extension()} generation, library offset ${libraryOffset}")
 
 		project.artifact.file = getGeneratedFile()
@@ -90,6 +98,9 @@ class BatheTimeMojo extends BaseBatheMojo {
 
 		initializeTracker() // extract out the list of files we are going to use in the main war
 
+		createManifest()
+
+		copyBuildDirectory()
 
 		extractTracking()
 
@@ -100,11 +111,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 
 		extractRunnableLibraries(runLibs)
 
-		copyBuildDirectory(libraryOffset + "/classes")
-
 		extractOtherLibraries(runLibs)
-
-		createManifest()
 
 		jar.close()
 	}
@@ -152,6 +159,21 @@ class BatheTimeMojo extends BaseBatheMojo {
 		}
 	}
 
+	protected void extractRunnableArtifactStraightIntoJar(Artifact artifact) {
+		JarFile f = new JarFile(artifact.getFile())
+
+		f.entries().each { JarEntry entry ->
+			if (entry.isDirectory()) {
+				if (!tracker.tracking(entry.name)) {
+					addJarDirectory(entry.name)
+				}
+			} else if (entry.name != 'META-INF/MANIFEST.MF' && !entry.name.startsWith('META-INF/maven/')) {
+				streamJarToJar(entry, entry.name, f.getInputStream(entry))
+			}
+
+		}
+	}
+
 	/**
 	 * This is typically where the WEB-INF/web.xml is stored along with anything else the user requires
 	 */
@@ -179,7 +201,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 	protected void extractRunnableLibraries(String[] runLibs) {
 		filterLibraries { Artifact artifact ->
 			if (artifactRunnable(artifact)) {
-				extractArtifact(artifact, '', true)
+				extractRunnableArtifactStraightIntoJar(artifact)
 			}
 		}
 	}
@@ -187,7 +209,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 	protected void extractOtherLibraries(String[] runLibs) {
 		filterLibraries { Artifact artifact ->
 			if (!artifactRunnable(artifact)) {
-				extractArtifact(artifact, libraryOffset, false)
+				copyWholeJar(artifact)
 			}
 		}
 	}
@@ -203,16 +225,18 @@ class BatheTimeMojo extends BaseBatheMojo {
 	protected void streamFile(File file, String name) {
 		if (!file.isDirectory()) {
 			JarEntry ze = new JarEntry(name)
+
 			jar.putNextEntry(ze)
-			InputStream is = new FileInputStream(file)
-			IOUtils.copy(is, jar)
-			jar.closeEntry()
-			is.close()
+
+			file.withInputStream { InputStream is ->
+				IOUtils.copy(is, jar)
+				jar.closeEntry()
+			}
 		}
 	}
 
 	protected void addJarFile(File file, String offset) {
-		String offsetDir = offset.endsWith('/') ? offset : offset + '/'
+		String offsetDir = (offset.endsWith('/') || offset == '') ? offset : offset + '/'
 
 		if (!tracker.tracking(offsetDir + file.name))
 			streamFile(file, offsetDir + file.name)
@@ -247,77 +271,63 @@ class BatheTimeMojo extends BaseBatheMojo {
 		}
 	}
 
-	protected void copyBuildDirectory(String offset) {
-		String dirOffset = addJarDirectory(offset)
-
+	protected void copyBuildDirectory() {
 		File classesDir = new File(project.build.outputDirectory)
 
 		if (classesDir.exists()) {
-			recursiveCopy(classesDir, dirOffset)
+			recursiveCopy(classesDir, "")
 		}
-	}
-
-	protected void addJarEntry(JarEntry jarEntry, InputStream is, String offset) {
-		String offsetDir
-
-		if (offset)
-			offsetDir = offset.endsWith('/') ? offset : offset + '/'
-		else
-			offsetDir = ''
-
-		String internalName = offsetDir + jarEntry.name
-
-		if (tracker.tracking(internalName)) {
-			return // skip this file
-		}
-
-		streamJarToJar(jarEntry, internalName, is)
 	}
 
 	protected void streamJarToJar(JarEntry jarEntry, String internalName, InputStream is) {
+
 		// bully the zip entry into copying the existing one and then reset its name to the new name
 		JarEntry ze = new JarEntry(jarEntry.name)
 		Field f = ze.class.getSuperclass().getDeclaredField("name")
 		f.setAccessible(true)
 		f.set(ze, internalName)
 
-		jar.putNextEntry(ze)
-		IOUtils.copy(is, jar)
-		jar.closeEntry()
+		try {
+			jar.putNextEntry(ze)
+			IOUtils.copy(is, jar)
+			jar.closeEntry()
+		} catch (ZipException zex) {
+			getLog().warn('Possible problem with build: ' + zex.getMessage())
+		}
 	}
 
-	protected void extractArtifact(Artifact artifact, String offset, boolean checkTracker) {
-		String offsetDir = offset.endsWith('/') ? offset : offset + '/'
+	/**
+	 * Spring-Boot-Loader rules that we have to copy an UNCOMPRESSEd copy of the jar file
+	 * into the lib directory.
+	 *
+	 * @param artifact
+	 */
+	protected void copyWholeJar(Artifact artifact) {
+		File tmpFile = File.createTempFile(artifact.file.name, "jar")
 
-		if (offset) {
-			String name = artifact.file.name
+		JarWriter tmpUncompressedJar = new JarWriter(tmpFile)
+		JarFile compressedJar = new JarFile(artifact.file)
 
-			if (name.endsWith(".jar")) {
-				name = name.substring(0, name.length() - 4)
-			}
+		tmpUncompressedJar.writeEntries(compressedJar)
 
-			offsetDir = offsetDir + name + '/'
-		} else {
-			offsetDir = ''
+		tmpUncompressedJar.close()
+
+		JarEntry ze = new JarEntry(libraryOffset + artifact.file.name)
+
+		tmpFile.withInputStream { InputStream jarDependencyStream ->
+			new JarWriter.CrcAndSize(tmpFile).setupStoredEntry(ze)
+			jar.putNextEntry(ze)
+			IOUtils.copy(jarDependencyStream, jar)
+			jar.closeEntry()
 		}
 
-		JarFile f = new JarFile(artifact.getFile())
-
-		f.entries().each { JarEntry entry ->
-			if (entry.isDirectory()) {
-				if (!tracker.tracking(offsetDir + entry.name)) {
-					addJarDirectory(offsetDir + entry.name)
-				}
-			} else if (entry.name != 'META-INF/MANIFEST.MF' || offsetDir != '') {
-				addJarEntry(entry, f.getInputStream(entry), offsetDir)
-			}
-
-		}
+		tmpFile.delete()
 	}
 
 	protected void createManifest() {
 		StringBuilder manifest = new StringBuilder("Manifest-Version: 1.0\n" +
 				"Main-Class: ${mainClass}\n" +
+			  "Start-Class: ${startClass}\n" +
 				"Created-by: Bathe/Time\n" +
 				"Implementation-Version: ${project.version}\n")
 

@@ -10,7 +10,7 @@ import java.util.jar.JarFile
 /**
  * author: Richard Vowles - http://gplus.to/Richard.Vowles
  */
-@CompileStatic
+//@CompileStatic
 class RunnableOffsetTracker {
 	List<String> offsets = []
 
@@ -86,12 +86,7 @@ class RunnableOffsetTracker {
 	}
 
 	Collection<Source> sortedTrackingItems() {
-		return sourceMap.values().sort(new Comparator<Source>() {
-			@Override
-			int compare(Source o1, Source o2) {
-				return o1.name.compareTo(o2.name)
-			}
-		})
+		return sourceMap.values().sort({ Source o1, Source o2 -> return o1.name.compareTo(o2.name) })
 	}
 
 	protected void matched(File file, String offset, boolean directory) {

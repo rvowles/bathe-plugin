@@ -15,7 +15,7 @@ import org.apache.maven.project.MavenProject
  *
  * @author: Richard Vowles - https://plus.google.com/+RichardVowles
  */
-@CompileStatic
+//@CompileStatic
 class BaseWebAppMojo extends AbstractMojo {
 
 	@Component
