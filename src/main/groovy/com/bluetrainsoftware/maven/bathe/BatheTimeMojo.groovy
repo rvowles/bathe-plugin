@@ -303,25 +303,32 @@ class BatheTimeMojo extends BaseBatheMojo {
 	 * @param artifact
 	 */
 	protected void copyWholeJar(Artifact artifact) {
-		File tmpFile = File.createTempFile(artifact.file.name, "jar")
+		if (artifact.file.name.endsWith('.jar') || artifact.file.name.endsWith('.war')) {
+			File tmpFile = File.createTempFile(artifact.file.name, "jar")
 
-		JarWriter tmpUncompressedJar = new JarWriter(tmpFile)
-		JarFile compressedJar = new JarFile(artifact.file)
+			JarWriter tmpUncompressedJar = new JarWriter(tmpFile)
 
-		tmpUncompressedJar.writeEntries(compressedJar)
+			try {
+				JarFile compressedJar = new JarFile(artifact.file)
 
-		tmpUncompressedJar.close()
+				tmpUncompressedJar.writeEntries(compressedJar)
 
-		JarEntry ze = new JarEntry(libraryOffset + artifact.file.name)
+				tmpUncompressedJar.close()
 
-		tmpFile.withInputStream { InputStream jarDependencyStream ->
-			new JarWriter.CrcAndSize(tmpFile).setupStoredEntry(ze)
-			jar.putNextEntry(ze)
-			IOUtils.copy(jarDependencyStream, jar)
-			jar.closeEntry()
+				JarEntry ze = new JarEntry(libraryOffset + artifact.file.name)
+
+				tmpFile.withInputStream { InputStream jarDependencyStream ->
+					new JarWriter.CrcAndSize(tmpFile).setupStoredEntry(ze)
+					jar.putNextEntry(ze)
+					IOUtils.copy(jarDependencyStream, jar)
+					jar.closeEntry()
+				}
+			} catch (Exception ex) {
+				getLog().error("Failed to process jar ${artifact.file.absolutePath}", ex)
+			} finally {
+				tmpFile.delete()
+			}
 		}
-
-		tmpFile.delete()
 	}
 
 	protected void createManifest() {
