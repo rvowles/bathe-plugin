@@ -305,26 +305,19 @@ class BatheTimeMojo extends BaseBatheMojo {
 	protected void copyWholeJar(Artifact artifact) {
 		if (artifact.file.name.endsWith('.jar') || artifact.file.name.endsWith('.war')) {
 			File tmpFile = File.createTempFile(artifact.file.name, "jar")
-
-			JarWriter tmpUncompressedJar = new JarWriter(tmpFile)
-
 			try {
-				JarFile compressedJar = new JarFile(artifact.file)
-
-				tmpUncompressedJar.writeEntries(compressedJar)
-
-				tmpUncompressedJar.close()
+				IOUtils.copy(new FileInputStream(artifact.file), new FileOutputStream(tmpFile))
 
 				JarEntry ze = new JarEntry(libraryOffset + artifact.file.name)
-
 				tmpFile.withInputStream { InputStream jarDependencyStream ->
 					new JarWriter.CrcAndSize(tmpFile).setupStoredEntry(ze)
 					jar.putNextEntry(ze)
 					IOUtils.copy(jarDependencyStream, jar)
 					jar.closeEntry()
 				}
-			} catch (Exception ex) {
-				getLog().error("Failed to process jar ${artifact.file.absolutePath}", ex)
+
+			} catch (IOException ioEx) {
+				getLog().error("Error copying tmp file {}", artifact.file.path, ioEx)
 			} finally {
 				tmpFile.delete()
 			}
@@ -334,19 +327,15 @@ class BatheTimeMojo extends BaseBatheMojo {
 	protected void createManifest() {
 		StringBuilder manifest = new StringBuilder("Manifest-Version: 1.0\n" +
 				"Main-Class: ${mainClass}\n" +
-			  "Start-Class: ${startClass}\n" +
+				"Start-Class: ${startClass}\n" +
 				"Created-by: Bathe/Time\n" +
 				"Implementation-Version: ${project.version}\n")
 
-		if (jumpClass)
+		if (jumpClass) {
 			manifest.append("Jump-Class: ${jumpClass}\n")
+		}
 
 		manifest.append("Jar-Offset: ${libraryOffset}\n")
-/*
-		manifest.append( "Bathe-Classpath: ")
-		manifest.append( offsetsForManifest.join(',') )
-		manifest.append("\n")
-*/
 
 		byte[] bytes = manifest.toString().bytes
 
