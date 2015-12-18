@@ -1,5 +1,6 @@
 package com.bluetrainsoftware.maven.bathe
 
+import groovy.transform.CompileStatic
 import org.apache.maven.plugin.AbstractMojo
 import org.apache.maven.plugins.annotations.Parameter
 import org.apache.maven.project.MavenProject
@@ -7,6 +8,7 @@ import org.apache.maven.project.MavenProject
 /**
  * author: Richard Vowles - http://gplus.to/RichardVowles
  */
+@CompileStatic
 abstract class BaseBatheMojo extends AbstractMojo {
 
 	@Parameter(required = true, readonly = true, property = 'project')
@@ -21,7 +23,11 @@ abstract class BaseBatheMojo extends AbstractMojo {
 	}
 
 	protected File getGeneratedFile() {
-		return new File(project.build.directory + "/${project.artifactId}-${project.version}.${extension()}")
+    if (project.build.finalName) {
+      return  new File("${project.build.directory}/${project.build.finalName}.${extension()}")
+    } else {
+      return new File(project.build.directory + "/${project.artifactId}-${project.version}.${extension()}")
+    }
 	}
 
 }
