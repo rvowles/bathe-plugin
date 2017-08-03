@@ -1,5 +1,7 @@
 package com.bluetrainsoftware.maven.bathe
 
+import groovy.transform.CompileStatic
+import groovy.transform.TypeCheckingMode
 import org.apache.commons.io.IOUtils
 import org.apache.maven.artifact.Artifact
 import org.apache.maven.plugin.MojoExecutionException
@@ -16,7 +18,7 @@ import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipException
 
-//@CompileStatic
+@CompileStatic
 @Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
 class BatheTimeMojo extends BaseBatheMojo {
 	public static final String ARTIFACT_WAR = 'war'
@@ -304,13 +306,13 @@ class BatheTimeMojo extends BaseBatheMojo {
 	 */
 	protected void copyWholeJar(Artifact artifact) {
 		if (artifact.file.name.endsWith('.jar') || artifact.file.name.endsWith('.war')) {
-			File tmpFile = File.createTempFile(artifact.file.name, "jar")
+			File tmpFile = File.createTempFile(generateReliableArtifactName(artifact), "jar")
 			try {
 				IOUtils.copy(new FileInputStream(artifact.file), new FileOutputStream(tmpFile))
 
 				JarEntry ze = new JarEntry(libraryOffset + artifact.file.name)
 				tmpFile.withInputStream { InputStream jarDependencyStream ->
-					new JarWriter.CrcAndSize(tmpFile).setupStoredEntry(ze)
+					setupStoredEntry(ze, tmpFile)
 					jar.putNextEntry(ze)
 					IOUtils.copy(jarDependencyStream, jar)
 					jar.closeEntry()
@@ -322,6 +324,16 @@ class BatheTimeMojo extends BaseBatheMojo {
 				tmpFile.delete()
 			}
 		}
+	}
+
+	@CompileStatic(TypeCheckingMode.SKIP)
+	protected setupStoredEntry(JarEntry ze, File tmpFile) {
+		new JarWriter.CrcAndSize(tmpFile).setupStoredEntry(ze)
+	}
+
+	static String generateReliableArtifactName(Artifact artifact) {
+		return "${artifact.artifactId}-${artifact.version?:''}"
+
 	}
 
 	protected void createManifest() {
@@ -349,7 +361,8 @@ class BatheTimeMojo extends BaseBatheMojo {
 	/**
 	 * This takes the artifacts that are listed in the project and sorts them according to the override settings
 	 */
-	public void sortArtifacts() {
+	 @CompileStatic(TypeCheckingMode.SKIP)
+	 void sortArtifacts() {
 		project.artifacts.each { Artifact artifact ->
 			sortedArtifacts.add(artifact)
 		}
