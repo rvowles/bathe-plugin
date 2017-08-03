@@ -317,7 +317,7 @@ class BatheTimeMojo extends BaseBatheMojo {
 				}
 
 			} catch (IOException ioEx) {
-				getLog().error("Error copying tmp file {}", artifact.file.path, ioEx)
+				getLog().error("Error copying tmp file ${artifact.file.path}", ioEx)
 			} finally {
 				tmpFile.delete()
 			}
