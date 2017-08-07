@@ -310,7 +310,8 @@ class BatheTimeMojo extends BaseBatheMojo {
 			try {
 				IOUtils.copy(new FileInputStream(artifact.file), new FileOutputStream(tmpFile))
 
-				JarEntry ze = new JarEntry(libraryOffset + artifact.file.name)
+				// this could cause some difficulty, it may not be a jar
+				JarEntry ze = new JarEntry(libraryOffset + generateReliableArtifactName(artifact) + ".jar")
 				tmpFile.withInputStream { InputStream jarDependencyStream ->
 					setupStoredEntry(ze, tmpFile)
 					jar.putNextEntry(ze)
