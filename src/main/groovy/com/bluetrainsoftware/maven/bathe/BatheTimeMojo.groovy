@@ -19,7 +19,7 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipException
 
 @CompileStatic
-@Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST)
+@Mojo(name = "time", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.TEST, threadSafe = true)
 class BatheTimeMojo extends BaseBatheMojo {
 	public static final String ARTIFACT_WAR = 'war'
 
@@ -65,6 +65,13 @@ class BatheTimeMojo extends BaseBatheMojo {
 	 */
 	@Parameter(property = 'run.runnableOffsets')
 	public String runnableOffsets
+
+	/**
+	 * By default, we use baseVersion for artifacts included, not version.
+	 * This means snapshots are always SNAPSHOT and not their timestamp.
+	 */
+	@Parameter(property = 'run.useVersion')
+	public Boolean useVersion = false
 
 	@Parameter(property = 'run.runnableOffsetPreference')
 	public RunnablePreference runnablePreference = RunnablePreference.first
@@ -332,8 +339,20 @@ class BatheTimeMojo extends BaseBatheMojo {
 		new JarWriter.CrcAndSize(tmpFile).setupStoredEntry(ze)
 	}
 
-	static String generateReliableArtifactName(Artifact artifact) {
-		return "${artifact.artifactId}-${artifact.version?:''}"
+	String generateReliableArtifactName(Artifact artifact) {
+		StringBuilder sb = new StringBuilder(artifact.artifactId)
+
+		if (useVersion) {
+			sb.append("-" + artifact.version)
+		} else {
+			sb.append("-" + artifact.baseVersion)
+		}
+
+		if (artifact.classifier) {
+			sb.append("-" + artifact.classifier)
+		}
+
+		return sb.toString()
 
 	}
 

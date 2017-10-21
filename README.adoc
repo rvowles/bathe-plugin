@@ -53,3 +53,13 @@ This will build your jar/war file. There are no mandatory parameters, but there 
 
 - jumpClass: this specifies the class that the Bathe Runner will jump to once it has completed configuration. It gets added to the manifest file.
 - 
+
+
+=== release notes
+
+==== 2.7
+
+- swapped by default to using the baseVersion so snapshots use the name SNAPSHOT and keep a consistent
+artifact name when packaged
+- added threadSafe support as there is no static state
+- swapped to using the nexus auto-release mechanism
